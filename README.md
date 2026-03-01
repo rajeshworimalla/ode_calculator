@@ -1,6 +1,8 @@
 # ODE Solver: Euler & Improved Euler
 
-This was made for MA331 class Differential Equations in Washburn University and is meant to work offline. A lightweight, single-file web app for solving first-order ODEs **dy/dx = f(x, y)** using **Euler’s method** and **Improved Euler (Heun’s method)**. No backend, no login, works offline.
+**Open the app:** [https://rajeshworimalla.github.io/euler_calculator/](https://rajeshworimalla.github.io/euler_calculator/)
+
+This was made for MA331 class Differential Equations in Washburn University . A lightweight, single-file web app for solving first-order ODEs **dy/dx = f(x, y)** using **Euler’s method** and **Improved Euler (Heun’s method)**. No backend, no login required.
 
 
 ## Equation input
@@ -33,4 +35,4 @@ This was made for MA331 class Differential Equations in Washburn University and 
 - [math.js](https://mathjs.org/) for safe expression parsing.
 - [Chart.js](https://www.chartjs.org/) + [chartjs-plugin-zoom](https://www.chartjs.org/chartjs-plugin-zoom/latest/) for the plot.
 
-For full offline use, save the page and open from disk; for zoom/pan to work offline, the Chart.js and zoom plugin scripts must be loaded (e.g. from a local copy or cached after first load).
+To use without the link, open the index.html file from the project folder in your browser (internet needed on first load to fetch libraries).
