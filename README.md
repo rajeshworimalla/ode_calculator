@@ -2,30 +2,6 @@
 
 This was made for MA331 class Differential Equations in Washburn University and is meant to work offline. A lightweight, single-file web app for solving first-order ODEs **dy/dx = f(x, y)** using **Euler’s method** and **Improved Euler (Heun’s method)**. No backend, no login, works offline.
 
-## How to run
-
-1. Open `index.html` in any modern browser (Chrome, Firefox, Edge, Safari).
-2. Enter your equation, initial conditions, step size, and final x.
-3. Click **Solve**. View the table and graph; use **Export table as CSV** if needed.
-
-## How to distribute to other people
-
-You only need to share **`index.html`**. No server or install required.
-
-**Option 1: Send the file**
-- Email, USB, or file share (OneDrive, Google Drive, etc.) the `index.html` file.
-- Recipients double‑click it (or right‑click → Open with → browser) to run it.
-- **First run:** They need internet so the app can load math.js and Chart.js from the CDN. After that, the browser may cache them for offline use.
-
-**Option 2: Put it online (share a link)**
-- Upload `index.html` to any static host, for example:
-  - **GitHub Pages:** Create a repo, push `index.html`, enable Pages in Settings. URL will be like `https://yourusername.github.io/repo-name/`.
-  - **Netlify / Vercel:** Drag and drop the folder or connect a repo; they give you a URL.
-- Share that URL; anyone can open it in a browser.
-
-**Option 3: Zip the folder**
-- Zip the folder that contains `index.html` (and optionally this README).
-- Share the zip; others unzip and open `index.html` in a browser.
 
 ## Equation input
 
