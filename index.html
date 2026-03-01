@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ODE Solver: Euler & Improved Euler</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f5f0;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #555;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --border: #e0e0e0;
+      --euler: #059669;
+      --heun: #2563eb;
+      --input-bg: #fff;
+    }
+    [data-theme="dark"] {
+      --bg: #1a1a1e;
+      --surface: #25252b;
+      --text: #e8e8e8;
+      --text-muted: #a0a0a0;
+      --border: #3a3a42;
+      --input-bg: #2d2d35;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --euler: #10b981;
+      --heun: #3b82f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1rem 1.5rem 2rem;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      color: var(--text);
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.25rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .results-tables {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+    @media (max-width: 1100px) {
+      .results-tables { grid-template-columns: 1fr; }
+    }
+    .results-tables .table-wrap { margin-top: 0; }
+    .results-tables h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      color: var(--text);
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .panel h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0 0 0.75rem 0;
+      color: var(--text);
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 0.85rem;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.98); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      margin-top: 0.5rem;
+    }
+    .btn-secondary:hover { background: var(--border); }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .toggle-row input { width: auto; margin: 0; }
+    .error-dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .error-dialog-overlay[aria-hidden="true"] { display: none; }
+    .error-dialog {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    .error-dialog h3 {
+      margin: 0 0 0.75rem 0;
+      font-size: 1rem;
+      color: #b91c1c;
+    }
+    [data-theme="dark"] .error-dialog h3 { color: #fca5a5; }
+    .error-dialog p { margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text); line-height: 1.5; }
+    .error-dialog .btn { margin-top: 0; }
+    .success {
+      color: var(--euler);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      padding: 0.5rem 0.75rem;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--text);
+    }
+    th:first-child, td:first-child { text-align: center; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(0,0,0,0.03); }
+    [data-theme="dark"] tr:hover td { background: rgba(255,255,255,0.05); }
+    .final-values {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .final-values span {
+      background: var(--bg);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+    }
+    .final-values .euler { color: var(--euler); }
+    .final-values .heun { color: var(--heun); }
+    .chart-container {
+      position: relative;
+      height: 380px;
+      margin-top: 0.5rem;
+    }
+    .theme-btn {
+      position: fixed;
+      top: 1rem;
+      right: 1.5rem;
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .theme-btn:hover { background: var(--border); }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin: 0 0 0.5rem 0;
+    }
+    .eq-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+    .eq-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .eq-row .eq-prefix {
+      flex-shrink: 0;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .eq-row input#equation {
+      flex: 1;
+      margin-bottom: 0;
+    }
+    .calc-pad {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+      margin-bottom: 0.5rem;
+    }
+    .calc-btn {
+      padding: 0.45rem 0.3rem;
+      font-size: 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.1s;
+    }
+    .calc-btn:hover {
+      background: var(--border);
+    }
+    .calc-btn:active { transform: scale(0.97); }
+    .calc-btn.fn {
+      background: var(--bg);
+      font-weight: 500;
+    }
+    .calc-btn.op { font-weight: 600; }
+    .calc-btn.wide { grid-column: span 2; }
+    .calc-btn.ac {
+      background: rgba(220, 38, 38, 0.15);
+      border-color: rgba(220, 38, 38, 0.4);
+    }
+    .calc-btn.ac:hover { background: rgba(220, 38, 38, 0.25); }
+    .formulas-panel {
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .formulas-panel h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      color: var(--text);
+    }
+    .formulas-panel .formula {
+      background: var(--bg);
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      font-family: ui-monospace, monospace;
+    }
+    .formulas-panel .formula sub { font-size: 0.75em; }
+    .description-block { max-width: 800px; }
+    .description-block p { margin: 0.25rem 0; }
+    .description-block strong { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="error-dialog-overlay" id="errorDialogOverlay" aria-hidden="true" role="alertdialog" aria-labelledby="errorDialogTitle" aria-modal="true">
+    <div class="error-dialog">
+      <h3 id="errorDialogTitle">Error</h3>
+      <p id="errorDialogMessage"></p>
+      <button type="button" class="btn" id="errorDialogOk">OK</button>
+    </div>
+  </div>
+  <button class="theme-btn" id="themeBtn" title="Toggle dark/light">🌙</button>
+  <h1>ODE Solver: Euler & Improved Euler</h1>
+  <div class="subtitle description-block">
+    <p>This was made for MA331 class Differential Equations in Washburn University and is meant to work offline.</p>
+    <p>Euler's method uses the slope at the current point to step forward: <strong>y<sub>n+1</sub> = y<sub>n</sub> + h · f(x<sub>n</sub>, y<sub>n</sub>)</strong>. Improved Euler (Heun's method) uses the average of two slopes for better accuracy: <strong>k₁ = f(x<sub>n</sub>, y<sub>n</sub>)</strong>, <strong>k₂ = f(x<sub>n</sub> + h, y<sub>n</sub> + h·k₁)</strong>, and <strong>y<sub>n+1</sub> = y<sub>n</sub> + (h/2)(k₁ + k₂)</strong>.</p>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <h2>1. Differential equation</h2>
+        <div class="eq-label">dy/dx = f(x, y). Type or use the keypad below. x and y are numbers (current point); don't write x(...) or y(...).</div>
+        <div class="eq-row">
+          <span class="eq-prefix">dy/dx =</span>
+          <input type="text" id="equation" placeholder="e.g. x - y" value="x - y" autocomplete="off">
+        </div>
+        <div class="calc-pad" id="calcPad">
+          <button type="button" class="calc-btn fn" data-insert="√()" data-offset="1">√</button>
+          <button type="button" class="calc-btn fn" data-insert="sin()" data-offset="1">sin</button>
+          <button type="button" class="calc-btn fn" data-insert="cos()" data-offset="1">cos</button>
+          <button type="button" class="calc-btn fn" data-insert="tan()" data-offset="1">tan</button>
+          <button type="button" class="calc-btn fn" data-insert="log()" data-offset="1">log</button>
+          <button type="button" class="calc-btn fn" data-insert="exp()" data-offset="1">exp</button>
+          <button type="button" class="calc-btn fn" data-insert="asin()" data-offset="1">sin⁻¹</button>
+          <button type="button" class="calc-btn fn" data-insert="acos()" data-offset="1">cos⁻¹</button>
+          <button type="button" class="calc-btn fn" data-insert="atan()" data-offset="1">tan⁻¹</button>
+          <button type="button" class="calc-btn fn" data-insert="()/()" data-offset="4" title="Fraction: type numerator, then denominator">a/b</button>
+          <button type="button" class="calc-btn op" data-insert="^">^</button>
+          <button type="button" class="calc-btn op" data-insert="(">(</button>
+          <button type="button" class="calc-btn op" data-insert=")">)</button>
+          <button type="button" class="calc-btn" data-insert="x">x</button>
+          <button type="button" class="calc-btn" data-insert="y">y</button>
+          <button type="button" class="calc-btn op" data-insert="/">/</button>
+          <button type="button" class="calc-btn op" data-insert="+">+</button>
+          <button type="button" class="calc-btn op" data-insert="-">−</button>
+          <button type="button" class="calc-btn op" data-insert="*">×</button>
+          <button type="button" class="calc-btn" data-insert="pi">π</button>
+          <button type="button" class="calc-btn" data-insert="e">e</button>
+          <button type="button" class="calc-btn" data-insert="0">0</button>
+          <button type="button" class="calc-btn" data-insert="1">1</button>
+          <button type="button" class="calc-btn" data-insert="2">2</button>
+          <button type="button" class="calc-btn" data-insert="3">3</button>
+          <button type="button" class="calc-btn" data-insert="4">4</button>
+          <button type="button" class="calc-btn" data-insert="5">5</button>
+          <button type="button" class="calc-btn" data-insert="6">6</button>
+          <button type="button" class="calc-btn" data-insert="7">7</button>
+          <button type="button" class="calc-btn" data-insert="8">8</button>
+          <button type="button" class="calc-btn" data-insert="9">9</button>
+          <button type="button" class="calc-btn" data-insert=".">.</button>
+          <button type="button" class="calc-btn ac" id="calcClear">Clear</button>
+          <button type="button" class="calc-btn" id="calcBack">⌫</button>
+        </div>
+        <p class="hint">Note: Trig is in radians. Use √ for square root (symbol, not "sqrt"). Use a/b for fractions (numerator over denominator).</p>
+
+        <h2>2. Initial conditions & step</h2>
+        <label for="x0">Initial x (x₀)</label>
+        <input type="number" id="x0" step="any" value="0">
+        <label for="y0">Initial y (y₀)</label>
+        <input type="number" id="y0" step="any" value="1">
+        <div class="row">
+          <div>
+            <label for="h">Step size (h)</label>
+            <input type="number" id="h" step="any" value="0.1" min="0.001">
+          </div>
+          <div>
+            <label for="xFinal">Final x</label>
+            <input type="number" id="xFinal" step="any" value="2">
+          </div>
+        </div>
+        <button class="btn" id="solveBtn">Solve</button>
+        <button class="btn btn-secondary" id="exportBtn">Export table as CSV</button>
+        <div id="inputSuccess" class="success" style="display:none"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Results</h2>
+        <div id="finalValues" class="final-values" style="display:none"></div>
+        <div class="results-tables">
+          <div>
+            <h3>Euler's method</h3>
+            <div class="table-wrap">
+              <table id="resultsTableEuler">
+                <thead><tr><th>n</th><th>x</th><th>yₙ</th><th>f(xₙ,yₙ)</th><th>yₙ₊₁</th></tr></thead>
+                <tbody id="resultsBodyEuler"></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3>Improved Euler (Heun)</h3>
+            <div class="table-wrap">
+              <table id="resultsTableHeun">
+                <thead><tr><th>n</th><th>x</th><th>yₙ</th><th>f(xₙ,yₙ)</th><th>k₁</th><th>k₂</th><th>yₙ₊₁</th></tr></thead>
+                <tbody id="resultsBodyHeun"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <h2 style="margin: 0;">Graph</h2>
+          <button type="button" class="btn btn-secondary" id="graphResetBtn" style="margin: 0; width: auto; padding: 0.4rem 0.75rem;">Reset view</button>
+        </div>
+        <p class="hint">Both methods on the same plot. Drag to pan, scroll to zoom.</p>
+        <div class="chart-container">
+          <canvas id="chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const equationInput = document.getElementById('equation');
+
+      function insertAtCursor(text, offsetFromEnd) {
+        const el = equationInput;
+        const start = el.selectionStart || 0;
+        const end = el.selectionEnd || start;
+        const before = el.value.slice(0, start);
+        const after = el.value.slice(end);
+        el.value = before + text + after;
+        const newPos = start + text.length - (offsetFromEnd || 0);
+        el.setSelectionRange(newPos, newPos);
+        el.focus();
+      }
+
+      document.getElementById('calcPad').addEventListener('click', function (e) {
+        const btn = e.target.closest('.calc-btn');
+        if (!btn) return;
+        if (btn.id === 'calcClear') {
+          equationInput.value = '';
+          equationInput.focus();
+          return;
+        }
+        if (btn.id === 'calcBack') {
+          const start = equationInput.selectionStart || 0;
+          const end = equationInput.selectionEnd || start;
+          if (start === end && start > 0) {
+            equationInput.value = equationInput.value.slice(0, start - 1) + equationInput.value.slice(end);
+            equationInput.setSelectionRange(start - 1, start - 1);
+          } else if (start !== end) {
+            equationInput.value = equationInput.value.slice(0, start) + equationInput.value.slice(end);
+            equationInput.setSelectionRange(start, start);
+          }
+          equationInput.focus();
+          return;
+        }
+        const insert = btn.getAttribute('data-insert');
+        const offset = parseInt(btn.getAttribute('data-offset') || '0', 10);
+        if (insert) insertAtCursor(insert, offset);
+      });
+
+      const x0Input = document.getElementById('x0');
+      const y0Input = document.getElementById('y0');
+      const hInput = document.getElementById('h');
+      const xFinalInput = document.getElementById('xFinal');
+      const solveBtn = document.getElementById('solveBtn');
+      const exportBtn = document.getElementById('exportBtn');
+      const inputSuccess = document.getElementById('inputSuccess');
+      const errorDialogOverlay = document.getElementById('errorDialogOverlay');
+      const errorDialogMessage = document.getElementById('errorDialogMessage');
+      const errorDialogOk = document.getElementById('errorDialogOk');
+      const resultsBodyEuler = document.getElementById('resultsBodyEuler');
+      const resultsBodyHeun = document.getElementById('resultsBodyHeun');
+      const finalValuesDiv = document.getElementById('finalValues');
+      const themeBtn = document.getElementById('themeBtn');
+
+      let chart = null;
+      let lastResult = null;
+
+      // Theme
+      const saved = localStorage.getItem('ode-theme');
+      if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      themeBtn.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+      themeBtn.addEventListener('click', function () {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        document.documentElement.setAttribute('data-theme', isDark ? '' : 'dark');
+        localStorage.setItem('ode-theme', isDark ? 'light' : 'dark');
+        themeBtn.textContent = isDark ? '🌙' : '☀️';
+        if (chart) chart.update('none');
+      });
+
+      function showError(msg) {
+        errorDialogMessage.textContent = msg || 'Something went wrong.';
+        errorDialogOverlay.setAttribute('aria-hidden', 'false');
+        errorDialogOverlay.style.display = 'flex';
+        errorDialogOk.focus();
+      }
+      function closeErrorDialog() {
+        errorDialogOverlay.setAttribute('aria-hidden', 'true');
+        errorDialogOverlay.style.display = 'none';
+      }
+      errorDialogOk.addEventListener('click', closeErrorDialog);
+      errorDialogOverlay.addEventListener('click', function (e) {
+        if (e.target === errorDialogOverlay) closeErrorDialog();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && errorDialogOverlay.style.display === 'flex') closeErrorDialog();
+      });
+      function showSuccess(msg) {
+        inputSuccess.textContent = msg;
+        inputSuccess.style.display = 'block';
+      }
+      function clearMessages() {
+        inputSuccess.style.display = 'none';
+      }
+
+      // Safe parser: only allow x, y and math functions. √ is shown in input but converted to sqrt for evaluation.
+      function parseExpr(str) {
+        if (!str || !str.trim()) throw new Error('Equation is empty');
+        let s = str.trim();
+        s = s.replace(/\u221A/g, 'sqrt');  // convert square root symbol √ to sqrt for math.js
+        const test = s.replace(/sqrt|sin|cos|tan|log|exp|asin|acos|atan|pi|e\b/gi, '');
+        if (!/^[\d\s+\-*/().xy^]+$/.test(test)) throw new Error('Invalid characters. Use only: x, y, numbers, + - * / ^ ( ) √ sqrt sin cos tan asin acos atan log exp');
+        return math.compile(s);
+      }
+
+      const MAX_STEPS = 50000;
+
+      function evalF(compiled, x, y) {
+        try {
+          const out = compiled.evaluate({ x: Number(x), y: Number(y) });
+          const num = typeof out === 'number' ? out : (out && typeof out.re === 'number' ? out.re : Number(out));
+          if (!Number.isFinite(num)) throw new Error('Result is not a finite number');
+          return num;
+        } catch (e) {
+          let msg = e.message || 'invalid';
+          if (/is not a function|is not a number/i.test(msg) && /'[xy]'/.test(msg)) {
+            msg = "x and y are numbers (the current point), not functions. Don't write x(...) or y(...). For example use: x - y, x*y, sin(x), sqrt(y).";
+          } else {
+            msg = 'Error evaluating f(x,y): ' + msg;
+          }
+          throw new Error(msg);
+        }
+      }
+
+      function runEuler(f, x0, y0, h, xFinal) {
+        const steps = [];
+        let x = x0, yE = y0, yH = y0;
+        const f0 = f(x0, y0);
+        steps.push({ n: 0, x, yEuler: yE, yHeun: yH, k1: null, k2: null, fxy: f0, slopeEuler: f0 });
+        let n = 1;
+        while (x < xFinal - 1e-10) {
+          if (n > MAX_STEPS) throw new Error('Too many steps (max ' + MAX_STEPS + '). Use a larger step size or shorter interval.');
+          const step = Math.min(h, xFinal - x);
+          let k1, k1H, k2H;
+          try {
+            k1 = f(x, yE);
+            if (!Number.isFinite(k1)) throw new Error('Slope is not finite at step ' + n);
+          } catch (e) {
+            throw new Error('At step ' + n + ' (x ≈ ' + x.toFixed(4) + '): ' + (e.message || 'evaluation failed'));
+          }
+          yE = yE + step * k1;
+          try {
+            k1H = f(x, yH);
+            k2H = f(x + step, yH + step * k1H);
+            if (!Number.isFinite(k1H) || !Number.isFinite(k2H)) throw new Error('Slope is not finite');
+          } catch (e) {
+            throw new Error('At step ' + n + ' (x ≈ ' + x.toFixed(4) + '): ' + (e.message || 'evaluation failed'));
+          }
+          yH = yH + (step / 2) * (k1H + k2H);
+          if (!Number.isFinite(yE) || !Number.isFinite(yH)) throw new Error('Solution became non-finite (NaN or infinity) at step ' + n + '. Try different initial conditions or step size.');
+          x = Math.min(x + step, xFinal);
+          const fxy = f(x, yH);
+          const slopeEuler = f(x, yE);
+          steps.push({
+            n,
+            x,
+            yEuler: yE,
+            yHeun: yH,
+            k1: k1H,
+            k2: k2H,
+            fxy: fxy,
+            slopeEuler: slopeEuler
+          });
+          n++;
+        }
+        return steps;
+      }
+
+      function solve() {
+        clearMessages();
+        const x0 = parseFloat(String(x0Input.value).trim());
+        const y0 = parseFloat(String(y0Input.value).trim());
+        const h = parseFloat(String(hInput.value).trim());
+        const xFinal = parseFloat(String(xFinalInput.value).trim());
+        if (x0Input.value === '' || y0Input.value === '' || isNaN(x0) || isNaN(y0)) {
+          showError('Please enter valid numbers for x₀ and y₀.');
+          return;
+        }
+        if (hInput.value === '' || isNaN(h) || h <= 0) {
+          showError('Step size h must be a positive number.');
+          return;
+        }
+        if (xFinalInput.value === '' || isNaN(xFinal)) {
+          showError('Please enter a valid number for final x.');
+          return;
+        }
+        if (xFinal <= x0) {
+          showError('Final x must be greater than initial x.');
+          return;
+        }
+        let compiled;
+        try {
+          compiled = parseExpr(equationInput.value);
+          evalF(compiled, x0, y0);
+        } catch (e) {
+          showError(e.message || 'Invalid equation.');
+          return;
+        }
+        const f = (x, y) => evalF(compiled, x, y);
+        let steps;
+        try {
+          steps = runEuler(f, x0, y0, h, xFinal);
+        } catch (e) {
+          showError(e.message || 'Numerical method failed.');
+          return;
+        }
+        lastResult = { steps, x0, y0, h, xFinal };
+        renderTable(steps);
+        renderChart(steps);
+        const last = steps[steps.length - 1];
+        const diff = Math.abs(last.yHeun - last.yEuler);
+        finalValuesDiv.innerHTML = `
+          <span>At x = ${last.x.toFixed(6)}:</span>
+          <span class="euler">y (Euler) ≈ ${last.yEuler.toFixed(6)}</span>
+          <span class="heun">y (Improved Euler) ≈ ${last.yHeun.toFixed(6)}</span>
+          <span title="Difference between the two methods">|Δy| = ${diff.toExponential(4)}</span>
+        `;
+        finalValuesDiv.style.display = 'flex';
+        showSuccess('Done. ' + steps.length + ' steps.');
+      }
+
+      function renderTable(steps) {
+        resultsBodyEuler.innerHTML = steps.map((s, i) => {
+          const slopeStr = s.slopeEuler != null ? s.slopeEuler.toFixed(6) : '';
+          const next = steps[i + 1];
+          const y1Str = next != null ? next.yEuler.toFixed(6) : '';
+          return '<tr><td>' + [s.n, s.x.toFixed(6), s.yEuler.toFixed(6), slopeStr, y1Str].join('</td><td>') + '</td></tr>';
+        }).join('');
+        resultsBodyHeun.innerHTML = steps.map((s, i) => {
+          const fxyStr = s.fxy != null ? s.fxy.toFixed(6) : '';
+          const k1Str = s.k1 != null ? s.k1.toFixed(6) : '';
+          const k2Str = s.k2 != null ? s.k2.toFixed(6) : '';
+          const next = steps[i + 1];
+          const y1Str = next != null ? next.yHeun.toFixed(6) : '';
+          return '<tr><td>' + [s.n, s.x.toFixed(6), s.yHeun.toFixed(6), fxyStr, k1Str, k2Str, y1Str].join('</td><td>') + '</td></tr>';
+        }).join('');
+      }
+
+      function renderChart(steps) {
+        const ctx = document.getElementById('chart').getContext('2d');
+        const xs = steps.map(s => s.x);
+        const eulerY = steps.map(s => s.yEuler);
+        const heunY = steps.map(s => s.yHeun);
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const grid = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+        const textColor = isDark ? '#e8e8e8' : '#1a1a1a';
+
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: xs,
+            datasets: [
+              {
+                label: 'Euler',
+                data: eulerY,
+                borderColor: '#059669',
+                backgroundColor: 'rgba(5, 150, 105, 0.15)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0,
+                pointRadius: 2
+              },
+              {
+                label: 'Improved Euler',
+                data: heunY,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0,
+                pointRadius: 2
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { labels: { color: textColor } },
+              zoom: {
+                zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                pan: { enabled: true, mode: 'xy' },
+                limits: { x: { min: 'original', max: 'original' }, y: { min: 'original', max: 'original' } }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: grid },
+                ticks: { color: textColor }
+              },
+              y: {
+                grid: { color: grid },
+                ticks: { color: textColor }
+              }
+            }
+          }
+        });
+      }
+
+      function exportCSV() {
+        if (!lastResult) {
+          showError('Solve first, then export.');
+          return;
+        }
+        const steps = lastResult.steps;
+        const headers = 'n,x,y (Euler),f(xn,yn),yn+1 (Euler),y (Heun),f(xn,yn),k1,k2,yn+1 (Heun)';
+        const rows = steps.map((s, i) => {
+          const next = steps[i + 1];
+          const y1E = next != null ? next.yEuler : '';
+          const y1H = next != null ? next.yHeun : '';
+          const slopeE = s.slopeEuler != null ? s.slopeEuler : '';
+          const fxy = s.fxy != null ? s.fxy : '';
+          const k1 = s.k1 != null ? s.k1 : '';
+          const k2 = s.k2 != null ? s.k2 : '';
+          return [s.n, s.x, s.yEuler, slopeE, y1E, s.yHeun, fxy, k1, k2, y1H].join(',');
+        });
+        const csv = [headers, ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'ode-results.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showSuccess('CSV downloaded.');
+      }
+
+      solveBtn.addEventListener('click', solve);
+      exportBtn.addEventListener('click', exportCSV);
+      document.getElementById('graphResetBtn').addEventListener('click', function () {
+        if (chart && typeof chart.resetZoom === 'function') chart.resetZoom();
+      });
+
+      equationInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') solve();
+      });
+    })();
+  </script>
+</body>
+</html>
